@@ -1,43 +1,201 @@
+<head>
+    <title>ImageWebPlayer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+    <style media="screen">
+        body {
+            margin: 0;
+            font-family: 'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif;
+        }
+        .content {
+            width: 100vw;
+            position: absolute;
+        }
+        .content.rotate {
+            width: 100vh;
+            height: 100vw;
+            transform: translateY(-100%) rotate(90deg);
+            transform-origin: bottom left;
+        }
+        img {
+            width: 100%;
+            height: auto;
+        }
+        .content.rotate img {
+            /* height: 100%;
+            width: auto; */
+        }
+        .button-rotate {
+            position: absolute;
+            z-index: 100;
+            width: 2rem;
+            height: 2rem;
+            font-size: 2rem;
+            line-height: 2rem;
+            background-color: white;
+            opacity: 0.2;
+            top: 1rem;
+            right: 1rem;
+        }
+        .button-navi {
+            position: absolute;
+            width: 20%;
+            height: 100%;
+            background-color: white;
+            opacity: 0.2;
+        }
+        .button-navi.left {
+            left: 0;
+        }
+        .button-navi.right {
+            right: 0;
+        }
+    </style>
+</head>
 <script src="https://unpkg.com/vue/dist/vue.js"></script>
 <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.1"></script>
+
 <div id="app">
-    <h1>Hello App!</h1>
-    <p>
-        <router-link to="/foo">Go to Foo</router-link>
-        <router-link to="/bar">Go to Bar</router-link>
-    </p>
     <router-view></router-view>
 </div>
+<script type="text/x-template" id="list-dir-template">
+    <div class="list-dir">
+        <p>Currnet: {{ path}}</p>
+        <p v-if="path"><router-link :to="{ name: 'list', params: { path: parent } }">..</router-link></p>
+        <p v-for="dir in dirs"><router-link :to="{ name: 'list', params: { path: path + dir + '/' } }">{{dir}}/</router-link></p>
+        <p v-for="file in files">
+            <span v-if="isimg(file)"><router-link :to="{ name: 'play', params: { path: path + file } }">{{file}}</router-link></span>
+            <span v-else>{{file}}</span>
+        </p>
+    </div>
+</script>
+<script type="text/x-template" id="list-dir-template">
+    <div class="list-dir">
+        <p>{{path}}</p>
+        <p v-if="path"><router-link :to="{ name: 'list', params: { path: parent } }">..</router-link></p>
+        <p v-for="dir in dirs"><router-link :to="{ name: 'list', params: { path: path + dir + '/' } }">{{dir}}/</router-link></p>
+        <p v-for="file in files">
+            <span v-if="isimg(file)"><router-link :to="{ name: 'play', params: { path: path + file } }">{{file}}</router-link></span>
+            <span v-else>{{file}}</span>
+        </p>
+    </div>
+</script>
+<script type="text/x-template" id="player-template">
+    <div class="image-player">
+        <div class="content" v-bind:class="{ rotate: rotate }" >
+            <div class="control-panel" v-show="showControl">
+                <div class="button-rotate" @click="toggleRotate()">R</div>
+                <div class="button-navi left"></div>
+                <div class="button-navi right"></div>
+            </div>
+            <div @click="toggleControl">
+                <img :src="'/files/' + path"/>
+            </div>
+        </div>
+    </div>
+</script>
 <script type="text/javascript">
-// 0. 如果使用模块化机制编程，导入Vue和VueRouter，要调用 Vue.use(VueRouter)
+    var Player = Vue.component('player', {
+        template: '#player-template',
+        data: function() {
+            return {
+                path: '',
+                rotate: false,
+                showControl: true
+            }
+        },
+        methods: {
+            load: function(path) {
+                this.path = path;
+            },
+            toggleRotate: function() {
+                this.rotate = !this.rotate;
+            },
+            toggleControl: function() {
+                this.showControl = !this.showControl;
+            }
+        },
+        created: function() {
+            this.load(this.$route.params.path)
+        },
+        beforeRouteUpdate: function(to, from, next) {
+            this.load(to.params.path)
+            next()
+        }
 
-// 1. 定义 (路由) 组件。
-// 可以从其他文件 import 进来
-const Foo = { template: '<div>foo</div>' }
-const Bar = { template: '<div>bar</div>' }
+    });
 
-// 2. 定义路由
-// 每个路由应该映射一个组件。 其中"component" 可以是
-// 通过 Vue.extend() 创建的组件构造器，
-// 或者，只是一个组件配置对象。
-// 我们晚点再讨论嵌套路由。
-const routes = [
-    { path: '/foo', component: Foo },
-    { path: '/bar', component: Bar }
-]
+    var ListDir = Vue.component('list-dir', {
+        template: '#list-dir-template',
+        data: function() {
+            return {
+                path: '',
+                dirs: [],
+                files: []
+            }
+        },
+        methods: {
+            load: function(path) {
+                this.$http.get('/list/' + path).then(respoonse => {
+                    this.dirs = respoonse.body.dirs;
+                    this.files = respoonse.body.files;
+                    this.path = path;
+                })
+            },
+            isimg: function(name) {
+                return /.*\.(jpg|jpeg|png|bmp|gif)/gm.exec(name) != null;
+            }
+        },
+        computed: {
+            parent: function() {
+                return this.path.replace(/[^\/]+\/$/gm, '');
+            }
+        },
+        created: function() {
+            this.load(this.$route.params.path)
 
-// 3. 创建 router 实例，然后传 `routes` 配置
-// 你还可以传别的配置参数, 不过先这么简单着吧。
-const router = new VueRouter({
-    routes // (缩写) 相当于 routes: routes
-})
+        },
+        beforeRouteUpdate: function(to, from, next) {
+            this.load(to.params.path)
+            next()
+        }
+    });
+    // 0. 如果使用模块化机制编程，导入Vue和VueRouter，要调用 Vue.use(VueRouter)
 
-// 4. 创建和挂载根实例。
-// 记得要通过 router 配置参数注入路由，
-// 从而让整个应用都有路由功能
-const app = new Vue({
-    router
-}).$mount('#app')
+    // 2. 定义路由
+    // 每个路由应该映射一个组件。 其中"component" 可以是
+    // 通过 Vue.extend() 创建的组件构造器，
+    // 或者，只是一个组件配置对象。
+    // 我们晚点再讨论嵌套路由。
+    const routes = [{
+            path: '/',
+            redirect: '/list/'
+        },
+        {
+            name: 'list',
+            path: '/list/:path(.*)',
+            component: ListDir
+        },
+        {
+            name: 'play',
+            path: '/play/:path(.*)',
+            component: Player
+        }
+    ]
 
-// 现在，应用已经启动了！
+    // 3. 创建 router 实例，然后传 `routes` 配置
+    // 你还可以传别的配置参数, 不过先这么简单着吧。
+    const router = new VueRouter({
+        routes: routes // (缩写) 相当于 routes: routes
+    })
+
+    // 4. 创建和挂载根实例。
+    // 记得要通过 router 配置参数注入路由，
+    // 从而让整个应用都有路由功能
+    const app = new Vue({
+        router: router
+    }).$mount('#app')
+
+    // 现在，应用已经启动了！
 </script>

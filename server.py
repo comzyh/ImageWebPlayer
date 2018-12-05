@@ -61,8 +61,8 @@ def main():
     app = web.Application()
     main_handler = MainHandler(rootdir=rootdir)
     app.add_routes([web.get('/', main_handler.index)])
-    app.add_routes([web.get('/list/{path:[\\w/]*}', main_handler.listdir)])
-    app.add_routes([web.get('/listimg/{path:[\\w/]*}', main_handler.listimg)])
+    app.add_routes([web.get('/list/{path:.*}', main_handler.listdir)])
+    app.add_routes([web.get('/listimg/{path:.*}', main_handler.listimg)])
     app.add_routes([web.static('/files', rootdir)])
 
     web.run_app(app)
