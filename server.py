@@ -48,7 +48,8 @@ class MainHandler:
 def main():
     parser = argparse.ArgumentParser(description='ImageWebPlayer')
     parser.add_argument('root', type=str, help='rootdir to view')
-    parser.add_argument('-p', '--port', type=str, help='listening port')
+    parser.add_argument('-p', '--port', type=str, default='8080', help='listening port')
+    parser.add_argument('-b', '--bind', type=str, default='127.0.0.1', help='bind address')
     args = parser.parse_args()
 
     rootdir = os.path.abspath(args.root)
@@ -65,7 +66,7 @@ def main():
     app.add_routes([web.get('/listimg/{path:.*}', main_handler.listimg)])
     app.add_routes([web.static('/files', rootdir)])
 
-    web.run_app(app)
+    web.run_app(app, host=args.bind, port=args.port)
 
 if __name__ == '__main__':
     main()

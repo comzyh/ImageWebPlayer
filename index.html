@@ -1,48 +1,110 @@
 <head>
     <title>ImageWebPlayer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, minimum-scale=1">
+    <meta name="theme-color" content="#000000" />
+
 
     <style media="screen">
         body {
             margin: 0;
             font-family: 'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif;
+            background-color: black;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        .control-panel {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            pointer-events:none;
+            top: 0;
+            right: 0;
+        }
+        .control-panel-box {
+            /* height: 100vh; */
+            /* width: 100vw; */
+            /* zoom: 1; */
+
+        }
+        .control-panel.rotate {
+            transform: translateX(100%) rotate(90deg);
+            transform-origin: top left;
+            width: 100vh;
+            height: 100vw;
+
         }
         .content {
             width: 100vw;
-            position: absolute;
+            /* height: 100vh; */
+            /* position: absolute; */
         }
         .content.rotate {
             width: 100vh;
-            height: 100vw;
+            /* height: 100vw; */
             transform: translateY(-100%) rotate(90deg);
             transform-origin: bottom left;
+            /* transform: translateX(100%) rotate(90deg);
+            transform-origin: top left; */
         }
         img {
             width: 100%;
             height: auto;
+            margin: 0 auto;
+            display: block;
         }
-        .content.rotate img {
-            /* height: 100%;
-            width: auto; */
+        img.adjust-height {
+            height: 100%;
+            width: auto;
+        }
+        .content.rotate img.adjust-height {
+            height: 100vw;
+            width: auto;
+        }
+
+        .button-back::before{
+            content: "B";
+        }
+        .button-back {
+            top: 1rem;
+            left: 1rem;
+        }
+        .button-rotate::before{
+            content: "R";
         }
         .button-rotate {
-            position: absolute;
-            z-index: 100;
-            width: 2rem;
-            height: 2rem;
-            font-size: 2rem;
-            line-height: 2rem;
-            background-color: white;
-            opacity: 0.2;
             top: 1rem;
             right: 1rem;
         }
+        .button-adjust-height::before {
+            content: "H"
+        }
+        .button-adjust-height {
+            top: 4rem;
+            right: 1rem;
+        }
+        .button-adjust-height.selected {
+            border: 0.1rem solid black;
+        }
+        /* button-navi */
         .button-navi {
             position: absolute;
             width: 20%;
             height: 100%;
-            background-color: white;
+            background-color: lightgray;
+            opacity: 0;
+            z-index: 100;
+            pointer-events: initial;
+        }
+        .show-panel .button-navi {
             opacity: 0.2;
+        }
+        .button-navi.small {
+            width: 2rem;
+            height: 2rem;
+            opacity: 0.2;
+            font-size: 2rem;
+            line-height: 2rem;
         }
         .button-navi.left {
             left: 0;
@@ -50,15 +112,35 @@
         .button-navi.right {
             right: 0;
         }
+        .panel-process {
+            position: absolute;
+            top: 0;
+            left: 25%;
+            width: 50%  ;
+            background-color: white;
+            opacity:0.5;
+        }
+        .content .rotate .image-container {
+            overflow: auto;
+            height: 100%
+        }
+        .image-player {
+
+        }
+        .list-dir {
+            background-color: white;
+            overflow-x: auto;
+        }
     </style>
 </head>
 <script src="https://unpkg.com/vue/dist/vue.js"></script>
 <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.1"></script>
-
+<body>
 <div id="app">
     <router-view></router-view>
 </div>
+</body>
 <script type="text/x-template" id="list-dir-template">
     <div class="list-dir">
         <p>Currnet: {{ path}}</p>
@@ -70,27 +152,23 @@
         </p>
     </div>
 </script>
-<script type="text/x-template" id="list-dir-template">
-    <div class="list-dir">
-        <p>{{path}}</p>
-        <p v-if="path"><router-link :to="{ name: 'list', params: { path: parent } }">..</router-link></p>
-        <p v-for="dir in dirs"><router-link :to="{ name: 'list', params: { path: path + dir + '/' } }">{{dir}}/</router-link></p>
-        <p v-for="file in files">
-            <span v-if="isimg(file)"><router-link :to="{ name: 'play', params: { path: path + file } }">{{file}}</router-link></span>
-            <span v-else>{{file}}</span>
-        </p>
-    </div>
-</script>
 <script type="text/x-template" id="player-template">
     <div class="image-player">
         <div class="content" v-bind:class="{ rotate: rotate }" >
-            <div class="control-panel" v-show="showControl">
-                <div class="button-rotate" @click="toggleRotate()">R</div>
-                <div class="button-navi left"></div>
-                <div class="button-navi right"></div>
+            <div @click="toggleControl" class="image-container">
+                <img :class="{'adjust-height': adjustHeight}" :src="'/files/' + path"/>
             </div>
-            <div @click="toggleControl">
-                <img :src="'/files/' + path"/>
+        </div>
+        <div class="control-panel-box">
+            <div class="control-panel" :class="{rotate: rotate, 'show-panel': showControl }" >
+                <div class="button-navi left" @click="navigate(-1)"></div>
+                <div class="button-navi right" @click="navigate(1)"></div>
+                <div v-show="showControl">
+                    <div class="button-navi small button-rotate" @click="toggleRotate()"></div>
+                    <div class="button-navi small button-adjust-height" @click="adjustHeight = !adjustHeight" :class="{selected: adjustHeight}"></div>
+                    <div class="button-navi small button-back" @click="goBack()"></div>
+                    <div class="panel-process"><span>({{fileindex + 1}}/{{count}})</span><span>{{file}}</span></div>
+                </div>
             </div>
         </div>
     </div>
@@ -101,19 +179,63 @@
         data: function() {
             return {
                 path: '',
+                dir: null,
+                file: '',
+                files: [],
                 rotate: false,
-                showControl: true
+                showControl: true,
+                adjustHeight: false
             }
         },
         methods: {
             load: function(path) {
                 this.path = path;
+                var dir = path.replace(/[^\/]*$/gm, '')
+                var matchs = path.match(/[^\/]*$/gm)
+                if (matchs) {
+                    this.file = matchs[0]
+                } else {
+                    this.file = ''
+                }
+                if (dir !== this.dir) {
+                    this.loadlist(dir);
+                    this.dir = dir;
+                }
+            },
+            navigate: function(detla) {
+                var target = this.fileindex + detla;
+                if (target > this.files.length - 1) {
+                    target = this.files.length - 1;
+                }
+                if (target < 0) {
+                    target = 0;
+                }
+                target = this.files[target];
+                // this.load(this.dir + target)
+                this.$router.replace({params: {path: this.dir + target}})
+            },
+            loadlist: function(dir) {
+                console.log('loadlist')
+                this.$http.get('/listimg/' + dir).then(respoonse => {
+                    this.files = respoonse.body.files;
+                })
             },
             toggleRotate: function() {
                 this.rotate = !this.rotate;
             },
             toggleControl: function() {
                 this.showControl = !this.showControl;
+            },
+            goBack: function() {
+                this.$router.push({name: 'list', params: { path: this.dir }})
+            }
+        },
+        computed: {
+            fileindex: function() {
+                return this.files.indexOf(this.file);
+            },
+            count: function() {
+                return this.files.length;
             }
         },
         created: function() {
