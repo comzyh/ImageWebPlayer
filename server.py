@@ -4,14 +4,18 @@
 import logging
 import coloredlogs
 import os
+import re
 import argparse
 from aiohttp import web
+from functools import cmp_to_key
+
 
 logger = logging.getLogger('ImageWebPlayer')
 coloredlogs.install()
 
 
 class MainHandler:
+    _filename_num_pattern = re.compile(r'^(?P<suffix>^.*?)(?P<sn>\d*)(?P<ext>\..*?)?$')
 
     def __init__(self, rootdir):
         self.rootdir = rootdir
@@ -41,7 +45,18 @@ class MainHandler:
                 files.append(name)
             elif not imgonly:
                 dirs.append(name)
-        files = sorted(files)
+
+        def filename_compare(x, y):
+            gx = self._filename_num_pattern.match(x)
+            gy = self._filename_num_pattern.match(y)
+            if gx.group('suffix') == gy.group('suffix') and gx.group('ext') == gy.group('ext'):
+                snx = gx.group('sn')
+                sny = gy.group('sn')
+                if int(snx) != int(sny):
+                    return int(snx) - int(sny)
+            return (x > y) - (x < y)
+        files = sorted(files, key=cmp_to_key(filename_compare))
+        # files = sorted(files)
         return web.json_response(dict(files=files, dirs=dirs))
 
 
@@ -67,6 +82,7 @@ def main():
     app.add_routes([web.static('/files', rootdir)])
 
     web.run_app(app, host=args.bind, port=args.port)
+
 
 if __name__ == '__main__':
     main()
