@@ -21,12 +21,6 @@
             top: 0;
             right: 0;
         }
-        .control-panel-box {
-            /* height: 100vh; */
-            /* width: 100vw; */
-            /* zoom: 1; */
-
-        }
         .control-panel.rotate {
             transform: translateX(100%) rotate(90deg);
             transform-origin: top left;
@@ -161,8 +155,8 @@
             </div>
         </div>
         <div class="control-panel" :class="{rotate: rotate, 'show-panel': showControl }">
-            <div class="button-navi left" @click="navigate(-1)"></div>
-            <div class="button-navi right" @click="navigate(1)"></div>
+            <div class="button-navi left" @click="navigate(-1)" v-on="touchEventsHelper()"></div>
+            <div class="button-navi right" @click="navigate(1)" v-on="touchEventsHelper()"></div>
             <div v-show="showControl">
                 <div class="button-navi small button-rotate" @click="toggleRotate()"></div>
                 <div class="button-navi small button-adjust-height" @click="adjustHeight = !adjustHeight" :class="{selected: adjustHeight}"></div>
@@ -183,10 +177,68 @@
                 files: [],
                 rotate: false,
                 showControl: true,
-                adjustHeight: false
+                adjustHeight: false,
+                touchStructs: {}
             }
         },
         methods: {
+            touchEventsHelper: function() {
+                return {
+                    touchstart: this.touchHandler,
+                    touchend: this.touchHandler,
+                    touchcancel: this.touchHandler
+                }
+            },
+            touchHandler: function(e) {
+                if (this.touchStructs[e.target] === undefined) {
+                    var newStruct = {
+                        timer: null,
+                        startPosition: null,
+                        startTime: null
+                    }
+                    this.touchStructs[e.target] = newStruct;
+                }
+                var ts = this.touchStructs[e.target];
+                if (e.type == 'touchstart') {
+                    ts.startPosition = [e.changedTouches[0].pageX, e.changedTouches[0].pageY];
+                    ts.startTime = e.timeStamp;
+                    ts.timer = setTimeout(function() {
+                        // long touch
+                    }, 1000);
+                }
+                if (e.type == 'touchend') {
+                    clearTimeout(ts.timer);
+                    var dx = e.changedTouches[0].pageX - ts.startPosition[0];
+                    var dy = e.changedTouches[0].pageY - ts.startPosition[1];
+                    var dis = Math.sqrt(dx * dx + dy * dy);
+                    if (e.timeStamp - ts.startTime <= 300 && dis > 20) {
+                        var angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                        var touchType;
+                        if (angle >= 60 && angle <= 120)
+                            touchType = "down";
+                        if (angle <= -60 && angle >= -120)
+                            touchType = "up";
+                        if (angle <= 20 && angle >= -20)
+                            touchType = "right";
+                        if ((angle <= -160 && angle > -180) || (angle >= 160 && angle <= 180))
+                            touchType = "left";
+                        if (touchType) {
+                            this.handleSwipe(e, touchType);
+                        }
+                    }
+                }
+            },
+            handleSwipe: function(e, touchType) {
+                var doNavi = true;
+                if (doNavi) {
+                    if (this.rotate && touchType == 'right') {
+                        this.navigate(-1);
+                    }
+                    if (this.rotate && touchType == 'left') {
+                        this.navigate(1);
+                    }
+                }
+            },
             load: function(path) {
                 this.path = path;
                 var dir = path.replace(/[^\/]*$/gm, '')
@@ -200,13 +252,15 @@
                     this.loadlist(dir);
                     this.dir = dir;
                 }
-                this.preloadImage();
+                for (var i = 1; i < 5; i++) {
+                    this.preloadImage(i);
+                }
             },
             getImageUrl: function(path) {
                 return '/files/' + path;
             },
-            preloadImage: function() {
-                var index = this.fileindex + 1;
+            preloadImage: function(detla) {
+                var index = this.fileindex + (detla || 1);
                 if (index < this.files.length) {
                     var img = new Image();
                     img.src = this.getImageUrl(this.dir + this.files[index]);
@@ -235,6 +289,9 @@
             },
             toggleRotate: function() {
                 this.rotate = !this.rotate;
+                if (this.rotate) {
+                    this.adjustHeight = true;
+                }
             },
             toggleControl: function() {
                 this.showControl = !this.showControl;
