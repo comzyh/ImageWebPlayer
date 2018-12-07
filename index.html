@@ -136,10 +136,11 @@
 <script src="https://unpkg.com/vue/dist/vue.js"></script>
 <script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.1"></script>
+
 <body>
-<div id="app">
-    <router-view></router-view>
-</div>
+    <div id="app">
+        <router-view></router-view>
+    </div>
 </body>
 <script type="text/x-template" id="list-dir-template">
     <div class="list-dir">
@@ -156,19 +157,17 @@
     <div class="image-player">
         <div class="content" v-bind:class="{ rotate: rotate }" >
             <div @click="toggleControl" class="image-container">
-                <img :class="{'adjust-height': adjustHeight}" :src="'/files/' + path"/>
+                <img :class="{'adjust-height': adjustHeight}" :src="getImageUrl(path)"/>
             </div>
         </div>
-        <div class="control-panel-box">
-            <div class="control-panel" :class="{rotate: rotate, 'show-panel': showControl }" >
-                <div class="button-navi left" @click="navigate(-1)"></div>
-                <div class="button-navi right" @click="navigate(1)"></div>
-                <div v-show="showControl">
-                    <div class="button-navi small button-rotate" @click="toggleRotate()"></div>
-                    <div class="button-navi small button-adjust-height" @click="adjustHeight = !adjustHeight" :class="{selected: adjustHeight}"></div>
-                    <div class="button-navi small button-back" @click="goBack()"></div>
-                    <div class="panel-process"><span>({{fileindex + 1}}/{{count}})</span><span>{{file}}</span></div>
-                </div>
+        <div class="control-panel" :class="{rotate: rotate, 'show-panel': showControl }">
+            <div class="button-navi left" @click="navigate(-1)"></div>
+            <div class="button-navi right" @click="navigate(1)"></div>
+            <div v-show="showControl">
+                <div class="button-navi small button-rotate" @click="toggleRotate()"></div>
+                <div class="button-navi small button-adjust-height" @click="adjustHeight = !adjustHeight" :class="{selected: adjustHeight}"></div>
+                <div class="button-navi small button-back" @click="goBack()"></div>
+                <div class="panel-process"><span>({{fileindex + 1}}/{{count}})</span><span>{{file}}</span></div>
             </div>
         </div>
     </div>
@@ -201,6 +200,17 @@
                     this.loadlist(dir);
                     this.dir = dir;
                 }
+                this.preloadImage();
+            },
+            getImageUrl: function(path) {
+                return '/files/' + path;
+            },
+            preloadImage: function() {
+                var index = this.fileindex + 1;
+                if (index < this.files.length) {
+                    var img = new Image();
+                    img.src = this.getImageUrl(this.dir + this.files[index]);
+                }
             },
             navigate: function(detla) {
                 var target = this.fileindex + detla;
@@ -211,8 +221,11 @@
                     target = 0;
                 }
                 target = this.files[target];
-                // this.load(this.dir + target)
-                this.$router.replace({params: {path: this.dir + target}})
+                this.$router.replace({
+                    params: {
+                        path: this.dir + target
+                    }
+                })
             },
             loadlist: function(dir) {
                 console.log('loadlist')
@@ -227,7 +240,12 @@
                 this.showControl = !this.showControl;
             },
             goBack: function() {
-                this.$router.push({name: 'list', params: { path: this.dir }})
+                this.$router.push({
+                    name: 'list',
+                    params: {
+                        path: this.dir
+                    }
+                })
             }
         },
         computed: {
