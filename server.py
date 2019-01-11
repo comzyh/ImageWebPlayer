@@ -125,6 +125,7 @@ class MainHandler:
     def archive_file(self, request):
         path_in_url = request.match_info['path']
         archive_file, path_in_archive = path_in_url.split('//')
+        archive_file = os.path.join(self.rootdir, archive_file)
         archive_file = self.get_archive(archive_file)
         content = archive_file.readfile(path_in_archive)
         print(content)
