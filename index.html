@@ -125,6 +125,20 @@
             background-color: white;
             overflow-x: auto;
         }
+        .nav-delta {
+            top: 50%;
+            position: absolute;
+            left: 50%;
+            height: 2em;
+            font-size: 2em;
+            width: 5em;
+            color: white;
+            background-color: gray;
+            opacity: 0.5;
+            margin: -1.5em -2.5em;
+            line-height: 2em;
+            text-align: center;
+        }
     </style>
 </head>
 <script src="https://unpkg.com/vue/dist/vue.js"></script>
@@ -155,14 +169,15 @@
             </div>
         </div>
         <div class="control-panel" :class="{rotate: rotate, 'show-panel': showControl }">
-            <div class="button-navi left" @click="navigate(-1)" v-on="touchEventsHelper()"></div>
-            <div class="button-navi right" @click="navigate(1)" v-on="touchEventsHelper()"></div>
+            <div class="button-navi left" @click="navigate(-1)" v-on="touchEventsHelper()" data-nav="-1"></div>
+            <div class="button-navi right" @click="navigate(1)" v-on="touchEventsHelper()" data-nav="1"></div>
             <div v-show="showControl">
                 <div class="button-navi small button-rotate" @click="toggleRotate()"></div>
                 <div class="button-navi small button-adjust-height" @click="adjustHeight = !adjustHeight" :class="{selected: adjustHeight}"></div>
                 <div class="button-navi small button-back" @click="goBack()"></div>
                 <div class="panel-process"><span>({{fileindex + 1}}/{{count}})</span><span>{{file}}</span></div>
             </div>
+            <div v-show="deltaNav != 0" class="nav-delta">{{deltaNav>0?'+':''}}{{deltaNav}}</div>
         </div>
     </div>
 </script>
@@ -178,7 +193,8 @@
                 rotate: false,
                 showControl: true,
                 adjustHeight: false,
-                touchStructs: {}
+                touchStructs: {},
+                deltaNav: 0
             }
         },
         methods: {
@@ -202,12 +218,36 @@
                 if (e.type == 'touchstart') {
                     ts.startPosition = [e.changedTouches[0].pageX, e.changedTouches[0].pageY];
                     ts.startTime = e.timeStamp;
-                    ts.timer = setTimeout(function() {
+                    if (ts.lttimer) {
+                        clearTimeout(ts.lttimer);
+                        ts.lttimer.null;
+                    }
+                    var deltaTick = parseInt(e.target.attributes['data-nav'].value);
+                    ts.timer = setTimeout(() => {
                         // long touch
+                        ts.timer = null;
+                        var cb = () => {
+                            this.deltaNav += deltaTick;
+                            ts.lttimer = setTimeout(cb, 100);
+                            console.log(this.deltaNav)
+                        }
+                        cb();
                     }, 1000);
                 }
                 if (e.type == 'touchend') {
-                    clearTimeout(ts.timer);
+                    if (ts.timer) {
+                        clearTimeout(ts.timer);
+                    } else {
+                        if (ts.lttimer) {
+                            clearTimeout(ts.lttimer);
+                            ts.lttimer = null;
+                            this.navigate(this.deltaNav);
+                            this.deltaNav = 0;
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+
                     var dx = e.changedTouches[0].pageX - ts.startPosition[0];
                     var dy = e.changedTouches[0].pageY - ts.startPosition[1];
                     var dis = Math.sqrt(dx * dx + dy * dy);
