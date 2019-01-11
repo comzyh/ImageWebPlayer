@@ -153,10 +153,11 @@
 <script type="text/x-template" id="list-dir-template">
     <div class="list-dir">
         <p>Currnet: {{ path}}</p>
-        <p v-if="path"><router-link :to="{ name: 'list', params: { path: parent } }">..</router-link></p>
+        <p v-if="path"><router-link :to="`/list/${parent}`">..</router-link></p>
         <p v-for="dir in dirs"><router-link :to="{ name: 'list', params: { path: path + dir + '/' } }">{{dir}}/</router-link></p>
         <p v-for="file in files">
-            <span v-if="isimg(file)"><router-link :to="{ name: 'play', params: { path: path + file } }">{{file}}</router-link></span>
+            <span v-if="isimg(file)"><router-link :to="`/play/${path}${file}`">{{file}}</router-link></span>
+            <span v-else-if="isarchive(file)"><router-link :to="`/list/${path}${file}//`">{{file}}</router-link></span>
             <span v-else>{{file}}</span>
         </p>
     </div>
@@ -299,7 +300,10 @@
                 }
             },
             getImageUrl: function(path) {
-                return '/files/' + path;
+                if (path.indexOf("//") == -1) {
+                    return '/files/' + path;
+                }
+                return '/archive_file/' + path;
             },
             preloadImage: function(detla) {
                 var index = this.fileindex + (detla || 1);
@@ -384,16 +388,18 @@
             },
             isimg: function(name) {
                 return /.*\.(jpg|jpeg|png|bmp|gif)/gm.exec(name) != null;
-            }
+            },
+            isarchive: function(name) {
+                return /.*\.(zip|7z)/gm.exec(name) != null;
+            },
         },
         computed: {
             parent: function() {
-                return this.path.replace(/[^\/]+\/$/gm, '');
+                return this.path.replace(/[^\/]+\/{1,2}$/gm, '');
             }
         },
         created: function() {
             this.load(this.$route.params.path)
-
         },
         beforeRouteUpdate: function(to, from, next) {
             this.load(to.params.path)
@@ -417,7 +423,7 @@
     ]
 
     const router = new VueRouter({
-        routes: routes
+        routes: routes,
     })
 
     const app = new Vue({
