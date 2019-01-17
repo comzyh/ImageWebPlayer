@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -47,6 +48,36 @@ func (a *Archive7z) GetFileReader(path string) (reader io.ReadCloser, err error)
 	return
 }
 
+type ArchiveZip struct {
+	path    string
+	archive *zip.ReadCloser
+}
+
+func (a *ArchiveZip) ListDir(path string) (files []string, dirs []string, err error) {
+	files = make([]string, 0)
+	dirs = make([]string, 0)
+	for _, file := range a.archive.File {
+		dir, filename := filepath.Split(strings.TrimRight(file.Name, "/"))
+		if dir == path {
+			if file.FileInfo().IsDir() {
+				dirs = append(dirs, filename)
+			} else {
+				files = append(files, filename)
+			}
+		}
+	}
+	return
+}
+func (a *ArchiveZip) GetFileReader(path string) (reader io.ReadCloser, err error) {
+	for _, file := range a.archive.File {
+		if file.Name == path {
+			reader, err = file.Open()
+			return
+		}
+	}
+	return
+}
+
 type ImageServer struct {
 	rootdir  string
 	archives map[string]Archive
@@ -66,8 +97,14 @@ func (s *ImageServer) openArchive(path string) (archive Archive, err error) {
 		}
 		archive = &Archive7z{path, a}
 	case ".zip":
-
+		var a *zip.ReadCloser
+		a, err = zip.OpenReader(path)
+		if err != nil {
+			return
+		}
+		archive = &ArchiveZip{path, a}
 	}
+	s.archives[path] = archive
 	return
 }
 func (s *ImageServer) archive_file(w http.ResponseWriter, r *http.Request) {
