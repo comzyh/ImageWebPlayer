@@ -134,8 +134,16 @@ func (s *ImageServer) getArchiveFilesAndDir(path string) (files []string, dirs [
 	archivePath := filepath.Join(s.rootdir, splitPath[0])
 	pathInArchive := splitPath[1]
 
-	archive, _ := s.openArchive(archivePath)
+	archive, err := s.openArchive(archivePath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	files, dirs, err = archive.ListDir(pathInArchive)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	return
 }
