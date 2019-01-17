@@ -12,11 +12,16 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/kjk/lzmadec"
 )
+
+var FilenameReg *regexp.Regexp
 
 type Archive interface {
 	ListDir(string) (files []string, dirs []string, err error)
@@ -165,6 +170,27 @@ func (s *ImageServer) getFSFilesAndDir(path string) (files []string, dirs []stri
 	return
 }
 
+type FilenameSort []string
+
+func (s FilenameSort) Less(i, j int) bool {
+	gi := FilenameReg.FindStringSubmatch(s[i])
+	gj := FilenameReg.FindStringSubmatch(s[j])
+	if gi[1] == gj[1] && gi[3] == gj[3] && gi[2] != gj[2] && gi[2] != "" && gj[2] != "" {
+		vi, _ := strconv.Atoi(gi[2])
+		vj, _ := strconv.Atoi(gj[2])
+		return vi < vj
+	}
+	return s[i] < s[j]
+}
+
+func (s FilenameSort) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s FilenameSort) Len() int {
+	return len(s)
+}
+
 func (s *ImageServer) list(w http.ResponseWriter, r *http.Request) {
 	var path string
 	imageOnly := false
@@ -197,6 +223,7 @@ func (s *ImageServer) list(w http.ResponseWriter, r *http.Request) {
 		}
 		files = imgfiles
 	}
+	sort.Sort(FilenameSort(files))
 	resp := map[string]interface{}{
 		"files": files,
 		"dirs":  dirs,
@@ -228,5 +255,6 @@ func main() {
 
 	r.PathPrefix("/files/").Handler(http.StripPrefix("/files/", http.FileServer(http.Dir(abs_root_dir))))
 	http.Handle("/", r)
+	FilenameReg = regexp.MustCompile(`(?m)^(?P<suffix>^.*?)(?P<sn>\d*)(?P<ext>\..*?)?$`)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *bind_address, *port), r))
 }
