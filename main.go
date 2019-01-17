@@ -17,16 +17,56 @@ import (
 	"github.com/kjk/lzmadec"
 )
 
-type ImageServer struct {
-	rootdir  string
-	archives map[string]interface{}
+type Archive interface {
+	ListDir(string) (files []string, dirs []string, err error)
+	GetFileReader(string) (reader io.ReadCloser, err error)
+}
+type Archive7z struct {
+	path    string
+	archive *lzmadec.Archive
 }
 
-func (s *ImageServer) openArchive(path string) (archive *lzmadec.Archive, err error) {
-	archive, ok := s.archives[path].(*lzmadec.Archive)
-	if !ok {
-		archive, err = lzmadec.NewArchive(path)
-		s.archives[path] = archive
+func (a *Archive7z) ListDir(path string) (files []string, dirs []string, err error) {
+	files = make([]string, 0)
+	dirs = make([]string, 0)
+	for _, e := range a.archive.Entries {
+		dir, filename := filepath.Split(e.Path)
+		if dir == path {
+			switch e.Attributes {
+			case "D":
+				dirs = append(dirs, filename)
+			case "A":
+				files = append(files, filename)
+			}
+		}
+	}
+	return
+}
+func (a *Archive7z) GetFileReader(path string) (reader io.ReadCloser, err error) {
+	reader, err = a.archive.GetFileReader(path)
+	return
+}
+
+type ImageServer struct {
+	rootdir  string
+	archives map[string]Archive
+}
+
+func (s *ImageServer) openArchive(path string) (archive Archive, err error) {
+	archive, ok := s.archives[path]
+	if ok {
+		return
+	}
+	switch filepath.Ext(path) {
+	case ".7z":
+		var a *lzmadec.Archive
+		a, err = lzmadec.NewArchive(path)
+		if err != nil {
+			return
+		}
+		archive = &Archive7z{path, a}
+	case ".zip":
+
 	}
 	return
 }
@@ -58,21 +98,8 @@ func (s *ImageServer) getArchiveFilesAndDir(path string) (files []string, dirs [
 	pathInArchive := splitPath[1]
 
 	archive, _ := s.openArchive(archivePath)
-	// archive, _ := lzmadec.NewArchive(archivePath)
+	files, dirs, err = archive.ListDir(pathInArchive)
 
-	files = make([]string, 0)
-	dirs = make([]string, 0)
-	for _, e := range archive.Entries {
-		dir, filename := filepath.Split(e.Path)
-		if dir == pathInArchive {
-			switch e.Attributes {
-			case "D":
-				dirs = append(dirs, filename)
-			case "A":
-				files = append(files, filename)
-			}
-		}
-	}
 	return
 }
 func (s *ImageServer) getFSFilesAndDir(path string) (files []string, dirs []string, err error) {
@@ -144,7 +171,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	server := &ImageServer{abs_root_dir, make(map[string]interface{})}
+	server := &ImageServer{abs_root_dir, make(map[string]Archive)}
 	r := mux.NewRouter().SkipClean(true)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
