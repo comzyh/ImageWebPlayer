@@ -158,7 +158,7 @@
         <p v-for="file in files">
             <span v-if="isimg(file)"><router-link :to="`/play/${path}${file}`">{{file}}</router-link></span>
             <span v-else-if="isarchive(file)"><router-link :to="`/list/${path}${file}//`">{{file}}</router-link></span>
-            <span v-else-if="isvideo(file)"><a :href="`/files/${path}${file}`">{{file}}</a></span>
+            <span v-else-if="isvideo(file)"><a :href="getFileUrl(file)">{{file}}</a></span>
             <span v-else>{{file}}</span>
         </p>
     </div>
@@ -396,6 +396,12 @@
             isarchive: function(name) {
                 return /.*\.(zip|7z)/gm.exec(name) != null;
             },
+            getFileUrl: function(file){
+                if (this.path.indexOf("//") == -1) {
+                    return '/files/' + this.path + file;
+                }
+                return '/archive_file/' + this.path + file;
+            }
         },
         computed: {
             parent: function() {

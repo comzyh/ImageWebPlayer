@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/h2non/filetype"
 	"github.com/kjk/lzmadec"
 )
 
@@ -93,15 +94,21 @@ func (s *ImageServer) openArchive(path string) (archive Archive, err error) {
 	if ok {
 		return
 	}
-	switch filepath.Ext(path) {
-	case ".7z":
+	kind, unknown := filetype.MatchFile(path)
+	if unknown != nil {
+		err = unknown
+		return
+	}
+
+	switch kind.Extension {
+	case "7z":
 		var a *lzmadec.Archive
 		a, err = lzmadec.NewArchive(path)
 		if err != nil {
 			return
 		}
 		archive = &Archive7z{path, a}
-	case ".zip":
+	case "zip":
 		var a *zip.ReadCloser
 		a, err = zip.OpenReader(path)
 		if err != nil {
