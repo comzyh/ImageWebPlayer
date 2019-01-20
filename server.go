@@ -19,6 +19,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/h2non/filetype"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/kjk/lzmadec"
 )
 
@@ -87,6 +88,8 @@ func (a *ArchiveZip) GetFileReader(path string) (reader io.ReadCloser, err error
 type ImageServer struct {
 	rootdir  string
 	archives map[string]Archive
+
+	archiveCache *lru.Cache
 }
 
 func (s *ImageServer) openArchive(path string) (archive Archive, err error) {
@@ -120,10 +123,18 @@ func (s *ImageServer) openArchive(path string) (archive Archive, err error) {
 	return
 }
 func (s *ImageServer) archive_file(w http.ResponseWriter, r *http.Request) {
-	deode_uri, _ := url.PathUnescape(r.RequestURI[len("/archive_file/"):])
-	splitPath := strings.Split(deode_uri, "//")
-	archivePath := filepath.Join(s.rootdir, splitPath[0])
+	decodeURI, _ := url.PathUnescape(r.RequestURI[len("/archive_file/"):])
+	splitPath := strings.Split(decodeURI, "//")
 	pathInArchive := splitPath[1]
+	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(pathInArchive)))
+
+	if buf, exist := s.archiveCache.Get(decodeURI); exist {
+		w.Write(buf.([]byte))
+		log.Printf("archive cache hit:    %s\n", decodeURI)
+		return
+	}
+
+	archivePath := filepath.Join(s.rootdir, splitPath[0])
 
 	archive, err := s.openArchive(archivePath)
 	// archive, err := lzmadec.NewArchive(archivePath)
@@ -137,8 +148,16 @@ func (s *ImageServer) archive_file(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	w.Header().Set("Content-Type", mime.TypeByExtension(filepath.Ext(pathInArchive)))
-	io.Copy(w, reader)
+	buf, err := ioutil.ReadAll(reader)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	if len(buf) < 64*1024*1024 {
+		s.archiveCache.Add(decodeURI, buf)
+		log.Printf("archive cache filled: %s\n", decodeURI)
+	}
+	w.Write(buf)
 }
 
 func (s *ImageServer) getArchiveFilesAndDir(path string) (files []string, dirs []string, err error) {
@@ -250,7 +269,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	server := &ImageServer{abs_root_dir, make(map[string]Archive)}
+	archiveCache, _ := lru.New(16)
+	server := &ImageServer{abs_root_dir, make(map[string]Archive), archiveCache}
 	r := mux.NewRouter().SkipClean(true)
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
